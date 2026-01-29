@@ -1,0 +1,26 @@
+.env
+__pycache__/
+*.pyc
+.DS_Store
+
+# Python
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Backend runtime artifacts
+backend/data/
+backend/uploads/
+
+# Frontend build (served by backend in prod)
+backend/static/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.env.local
+frontend/.env.*.local
+
+# OpenCode metadata
+.opencode/
