@@ -4,12 +4,12 @@ import datetime as dt
 from collections import Counter, defaultdict
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Accident
-from app.schemas import BucketCount, SummaryStats, TimelinePoint
+from app.schemas import BucketCount, GeoBucket, SummaryStats, TimelinePoint
 from app.utils import now_bjt_naive
 
 
@@ -65,4 +65,31 @@ def timeline(db: Session = Depends(get_db), days: int = Query(30, ge=1, le=365))
     for i in range(days, -1, -1):
         key = (now - dt.timedelta(days=i)).date().isoformat()
         out.append(TimelinePoint(date=key, count=int(buckets.get(key, 0))))
+    return out
+
+
+@router.get("/stats/geo", response_model=list[GeoBucket])
+def geo_buckets(
+    db: Session = Depends(get_db),
+    precision: int = Query(2, ge=0, le=6),
+    limit: int = Query(200, ge=1, le=2000),
+):
+    lat_r = func.round(Accident.lat, precision).label("lat")
+    lng_r = func.round(Accident.lng, precision).label("lng")
+    cnt = func.count().label("count")
+
+    stmt = (
+        select(lat_r, lng_r, cnt)
+        .where(Accident.lat.is_not(None), Accident.lng.is_not(None))
+        .group_by(lat_r, lng_r)
+        .order_by(desc(cnt))
+        .limit(limit)
+    )
+
+    rows = db.execute(stmt).all()
+    out: list[GeoBucket] = []
+    for lat, lng, c in rows:
+        if lat is None or lng is None:
+            continue
+        out.append(GeoBucket(lat=float(lat), lng=float(lng), count=int(c or 0)))
     return out

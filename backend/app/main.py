@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.db import engine
+from app.db import engine, ensure_sqlite_schema
 from app.models import Base
 from app.routes.accidents import router as accidents_router
 from app.routes.stats import router as stats_router
@@ -62,6 +62,7 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     def _init_db() -> None:
         Base.metadata.create_all(bind=engine)
+        ensure_sqlite_schema(engine)
 
     return app
 

@@ -41,3 +41,9 @@ export type TimelinePoint = {
   date: string
   count: number
 }
+
+export type GeoBucket = {
+  lat: number
+  lng: number
+  count: number
+}

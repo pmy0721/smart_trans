@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getAccident } from '../api/client'
 import type { AccidentRead } from '../api/types'
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
 
 function fmtDate(iso: string) {
   try {
@@ -19,6 +20,11 @@ function fmtDate(iso: string) {
   } catch {
     return iso
   }
+}
+
+function fmtCoord(n: number) {
+  const s = n.toFixed(6)
+  return s.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1')
 }
 
 export default function AccidentDetailPage() {
@@ -128,6 +134,56 @@ export default function AccidentDetailPage() {
                   </div>
                 </div>
               ) : null}
+
+              <div style={{ marginTop: 12 }}>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  Location
+                </div>
+                {item.lat != null && item.lng != null ? (
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    Lat {fmtCoord(item.lat)}, Lng {fmtCoord(item.lng)}
+                  </div>
+                ) : (
+                  <div className="muted" style={{ marginTop: 4 }}>
+                    No coordinates.
+                  </div>
+                )}
+                {item.location_text ? (
+                  <div className="muted" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                    {item.location_text}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="card" style={{ gridColumn: '1 / -1' }}>
+            <div className="cardInner">
+              <div style={{ fontWeight: 650, marginBottom: 10 }}>Map</div>
+              {item.lat != null && item.lng != null ? (
+                <div style={{ height: 320, borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
+                  <MapContainer
+                    center={[item.lat, item.lng]}
+                    zoom={15}
+                    scrollWheelZoom={false}
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer
+                      attribution='&copy; OpenStreetMap contributors'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <Marker position={[item.lat, item.lng]}>
+                      <Popup>
+                        ID {item.id}
+                        <br />
+                        Lat {fmtCoord(item.lat)}, Lng {fmtCoord(item.lng)}
+                      </Popup>
+                    </Marker>
+                  </MapContainer>
+                </div>
+              ) : (
+                <div className="muted">No location data to display.</div>
+              )}
             </div>
           </div>
         </div>

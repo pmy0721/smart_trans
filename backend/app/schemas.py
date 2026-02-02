@@ -77,3 +77,9 @@ class BucketCount(BaseModel):
 class TimelinePoint(BaseModel):
     date: str
     count: int
+
+
+class GeoBucket(BaseModel):
+    lat: float
+    lng: float
+    count: int

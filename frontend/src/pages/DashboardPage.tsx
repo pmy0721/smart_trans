@@ -1,24 +1,27 @@
 import ReactECharts from 'echarts-for-react'
 import { useEffect, useMemo, useState } from 'react'
-import { getBySeverity, getByType, getSummary, getTimeline } from '../api/client'
-import type { BucketCount, SummaryStats, TimelinePoint } from '../api/types'
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { getBySeverity, getByType, getGeoBuckets, getSummary, getTimeline } from '../api/client'
+import type { BucketCount, GeoBucket, SummaryStats, TimelinePoint } from '../api/types'
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
   const [byType, setByType] = useState<BucketCount[]>([])
   const [bySeverity, setBySeverity] = useState<BucketCount[]>([])
   const [timeline, setTimeline] = useState<TimelinePoint[]>([])
+  const [geo, setGeo] = useState<GeoBucket[]>([])
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getSummary(), getByType(), getBySeverity(), getTimeline(30)])
-      .then(([s, t, sev, tl]) => {
+    Promise.all([getSummary(), getByType(), getBySeverity(), getTimeline(30), getGeoBuckets({ precision: 2, limit: 300 })])
+      .then(([s, t, sev, tl, g]) => {
         if (cancelled) return
         setSummary(s)
         setByType(t)
         setBySeverity(sev)
         setTimeline(tl)
+        setGeo(g)
       })
       .catch((e) => {
         if (cancelled) return
@@ -28,6 +31,13 @@ export default function DashboardPage() {
       cancelled = true
     }
   }, [])
+
+  const geoTotal = useMemo(() => geo.reduce((acc, x) => acc + (x.count || 0), 0), [geo])
+
+  function radiusForCount(c: number) {
+    const r = 6 + Math.log2(Math.max(1, c) + 1) * 6
+    return Math.max(6, Math.min(22, r))
+  }
 
   const typeOption = useMemo(() => {
     const top = byType.slice(0, 10)
@@ -154,6 +164,49 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid">
+        <div className="card" style={{ gridColumn: 'span 12' }}>
+          <div className="cardInner">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontWeight: 650 }}>Accidents by region</div>
+              <div className="muted" style={{ fontSize: 12 }}>
+                {geo.length ? `${geoTotal} records / ${geo.length} buckets` : 'No location data'}
+              </div>
+            </div>
+            <div
+              style={{
+                height: 340,
+                marginTop: 10,
+                borderRadius: 14,
+                overflow: 'hidden',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+              }}
+            >
+              <MapContainer center={[35.8617, 104.1954]} zoom={4} scrollWheelZoom={false} style={{ height: '100%' }}>
+                <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                {geo.map((b) => (
+                  <CircleMarker
+                    key={`${b.lat},${b.lng}`}
+                    center={[b.lat, b.lng]}
+                    radius={radiusForCount(b.count)}
+                    pathOptions={{
+                      color: 'rgba(45, 212, 191, 0.9)',
+                      weight: 2,
+                      fillColor: 'rgba(45, 212, 191, 0.35)',
+                      fillOpacity: 1,
+                    }}
+                  >
+                    <Popup>
+                      Lat {b.lat.toFixed(2)}, Lng {b.lng.toFixed(2)}
+                      <br />
+                      Count: {b.count}
+                    </Popup>
+                  </CircleMarker>
+                ))}
+              </MapContainer>
+            </div>
+          </div>
+        </div>
+
         <div className="card" style={{ gridColumn: 'span 7' }}>
           <div className="cardInner">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

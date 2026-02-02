@@ -1,0 +1,196 @@
+{
+  "version": "2026-02-02.1",
+  "accident_type": {
+    "allowed": [
+      "追尾",
+      "侧面碰撞",
+      "翻车",
+      "撞护栏",
+      "对向相撞",
+      "行人事故",
+      "非机动车事故",
+      "多车连环",
+      "单车事故",
+      "占道",
+      "逆行",
+      "其他"
+    ],
+    "rules": [
+      {
+        "id": "type_pedestrian",
+        "priority": 120,
+        "when": { "pedestrian_involved": true },
+        "set": "行人事故",
+        "note": "Vulnerable road user involved: pedestrian."
+      },
+      {
+        "id": "type_non_motor",
+        "priority": 110,
+        "when": { "non_motor_involved": true },
+        "set": "非机动车事故",
+        "note": "Vulnerable road user involved: bicycle/e-bike/motorbike."
+      },
+      {
+        "id": "type_fire",
+        "priority": 105,
+        "when": { "fire_or_smoke": true, "vehicles_involved": { ">=": 1 } },
+        "set": "其他",
+        "note": "Fire/smoke present; type may be unclear."
+      },
+      {
+        "id": "type_rollover",
+        "priority": 104,
+        "when": { "rollover": true },
+        "set": "翻车",
+        "note": "Vehicle rollover detected."
+      },
+      {
+        "id": "type_pileup",
+        "priority": 103,
+        "when": { "vehicles_involved": { ">=": 3 }, "collision_evidence": true },
+        "set": "多车连环",
+        "note": "Three or more vehicles involved with collision evidence."
+      },
+      {
+        "id": "type_head_on",
+        "priority": 102,
+        "when": { "collision_mode": "head_on" },
+        "set": "对向相撞",
+        "note": "Opposite-direction frontal impact."
+      },
+      {
+        "id": "type_guardrail",
+        "priority": 101,
+        "when": { "guardrail_collision": true },
+        "set": "撞护栏",
+        "note": "Impact with guardrail or barrier."
+      },
+      {
+        "id": "type_rear_end",
+        "priority": 100,
+        "when": { "collision_mode": "rear_end" },
+        "set": "追尾",
+        "note": "Front-to-rear alignment impact."
+      },
+      {
+        "id": "type_side",
+        "priority": 99,
+        "when": { "collision_mode": "side" },
+        "set": "侧面碰撞",
+        "note": "Lateral impact cues."
+      },
+      {
+        "id": "type_single_vehicle",
+        "priority": 98,
+        "when": { "collision_mode": "single_vehicle", "collision_evidence": true },
+        "set": "单车事故",
+        "note": "Single vehicle crash evidence."
+      },
+      {
+        "id": "type_wrong_way",
+        "priority": 60,
+        "when": { "wrong_way": true, "scene_context_confidence": { ">=": 0.6 } },
+        "set": "逆行",
+        "note": "Wrong-way driving detected with sufficient context."
+      },
+      {
+        "id": "type_blockage_only",
+        "priority": 20,
+        "when": { "lane_blockage": { "in": ["partial", "full"] }, "collision_evidence": false },
+        "set": "占道",
+        "note": "Blocked lanes but collision evidence unclear."
+      }
+    ],
+    "default": "其他"
+  },
+  "severity": {
+    "allowed": ["轻微", "中等", "严重"],
+    "rules": [
+      {
+        "id": "sev_pedestrian",
+        "priority": 120,
+        "when": { "pedestrian_involved": true },
+        "set": "严重",
+        "note": "Pedestrian involvement is treated as severe by heuristic."
+      },
+      {
+        "id": "sev_rollover",
+        "priority": 110,
+        "when": { "rollover": true },
+        "set": "严重",
+        "note": "Rollover is severe."
+      },
+      {
+        "id": "sev_fire",
+        "priority": 109,
+        "when": { "fire_or_smoke": true },
+        "set": "严重",
+        "note": "Fire/heavy smoke is severe."
+      },
+      {
+        "id": "sev_pileup",
+        "priority": 108,
+        "when": { "vehicles_involved": { ">=": 3 }, "collision_evidence": true },
+        "set": "严重",
+        "note": "Multi-vehicle pileup is severe."
+      },
+      {
+        "id": "sev_major_damage",
+        "priority": 100,
+        "when": { "damage_level": "severe" },
+        "set": "严重",
+        "note": "Severe visible deformation."
+      },
+      {
+        "id": "sev_full_block",
+        "priority": 95,
+        "when": { "lane_blockage": "full" },
+        "set": "严重",
+        "note": "Full road blockage."
+      },
+      {
+        "id": "sev_moderate",
+        "priority": 50,
+        "when": { "collision_evidence": true, "damage_level": { "in": ["moderate", "unknown"] } },
+        "set": "中等",
+        "note": "Collision without severe indicators."
+      },
+      {
+        "id": "sev_minor",
+        "priority": 10,
+        "when": { "collision_evidence": true, "damage_level": "minor" },
+        "set": "轻微",
+        "note": "Light damage only."
+      },
+      {
+        "id": "sev_no_accident",
+        "priority": 0,
+        "when": { "collision_evidence": false },
+        "set": "轻微",
+        "note": "No collision evidence."
+      }
+    ],
+    "default": "中等"
+  },
+  "confidence": {
+    "base_if_accident": 0.55,
+    "base_if_no_accident": 0.35,
+    "weights": {
+      "collision_evidence": 0.10,
+      "rollover": 0.20,
+      "fire_or_smoke": 0.20,
+      "pedestrian_involved": 0.20,
+      "non_motor_involved": 0.15,
+      "guardrail_collision": 0.12,
+      "wrong_way": 0.08,
+      "head_on": 0.15,
+      "rear_end": 0.10,
+      "side": 0.10,
+      "vehicles_3_plus": 0.10,
+      "damage_moderate": 0.08,
+      "damage_severe": 0.15,
+      "lane_block_partial": 0.05,
+      "lane_block_full": 0.10
+    }
+  }
+}

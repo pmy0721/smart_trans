@@ -1,4 +1,4 @@
-import type { AccidentListResponse, AccidentRead, BucketCount, SummaryStats, TimelinePoint } from './types'
+import type { AccidentListResponse, AccidentRead, BucketCount, GeoBucket, SummaryStats, TimelinePoint } from './types'
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE || ''
 
@@ -50,4 +50,12 @@ export function getBySeverity(): Promise<BucketCount[]> {
 
 export function getTimeline(days = 30): Promise<TimelinePoint[]> {
   return requestJson(`/api/stats/timeline?days=${encodeURIComponent(String(days))}`)
+}
+
+export function getGeoBuckets(params?: { precision?: number; limit?: number }): Promise<GeoBucket[]> {
+  const qs = new URLSearchParams()
+  if (params?.precision != null) qs.set('precision', String(params.precision))
+  if (params?.limit != null) qs.set('limit', String(params.limit))
+  const s = qs.toString()
+  return requestJson(`/api/stats/geo${s ? `?${s}` : ''}`)
 }

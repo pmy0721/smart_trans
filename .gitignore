@@ -24,3 +24,6 @@ frontend/.env.*.local
 
 # OpenCode metadata
 .opencode/
+
+# Local cache
+.cache/
