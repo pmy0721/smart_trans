@@ -370,6 +370,14 @@ def run_detection(args: argparse.Namespace):
         LOGGER.error(f"模型加载失败: {e}")
         sys.exit(1)
     
+    # 若启用 --save，则将标注结果保存到 ./output 目录（而不是默认的 runs/）
+    # 使用绝对路径避免被 Ultralytics 追加 runs/<task>/ 前缀。
+    if args.save:
+        out_dir = Path("output").resolve()
+        args.save_dir = str(out_dir)
+        args.name = "."  # 使 Ultralytics 保存到 project 根目录
+        args.exist_ok = True  # 固定写入 ./output，不自动递增 exp/exp2
+
     # 设置保存目录
     save_dir = None
     if args.save or args.save_txt or args.save_crop:

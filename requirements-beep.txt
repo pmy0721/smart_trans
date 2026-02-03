@@ -1,0 +1,5 @@
+# Optional dependencies for Huawei Cloud IoTDA beeper MCP server.
+# Install only if you need `beep_mcp_server.py`.
+
+huaweicloudsdkcore
+huaweicloudsdkiotda

@@ -27,3 +27,9 @@ frontend/.env.*.local
 
 # Local cache
 .cache/
+
+# Local pipeline outputs
+output/
+
+# MCP image receiver artifacts
+incoming/
