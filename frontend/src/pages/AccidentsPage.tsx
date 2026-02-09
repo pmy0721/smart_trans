@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { listAccidents } from '../api/client'
 import type { AccidentRead } from '../api/types'
+import { TEXT } from '../ui/textZh'
 
 const SEVERITIES = ['', '轻微', '中等', '严重'] as const
 const HAS_ACCIDENT = ['', 'true', 'false'] as const
@@ -62,38 +63,38 @@ export default function AccidentsPage() {
 
   return (
     <div>
-      <h1 className="pageTitle">Accidents</h1>
+      <h1 className="pageTitle">{TEXT.accidents.title}</h1>
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="cardInner">
           <div className="controls">
             <div className="control">
               <label className="muted" style={{ fontSize: 12, marginRight: 6 }}>
-                Severity
+                {TEXT.accidents.filterSeverity}
               </label>
               <select value={severity} onChange={(e) => setSeverity(e.target.value)}>
                 {SEVERITIES.map((s) => (
                   <option key={s} value={s}>
-                    {s || 'All'}
+                    {s || TEXT.common.all}
                   </option>
                 ))}
               </select>
             </div>
             <div className="control">
               <label className="muted" style={{ fontSize: 12, marginRight: 6 }}>
-                Has accident
+                {TEXT.accidents.filterHasAccident}
               </label>
               <select value={hasAccident} onChange={(e) => setHasAccident(e.target.value)}>
                 {HAS_ACCIDENT.map((s) => (
                   <option key={s} value={s}>
-                    {s === '' ? 'All' : s}
+                    {s === '' ? TEXT.common.all : s === 'true' ? TEXT.common.yes : TEXT.common.no}
                   </option>
                 ))}
               </select>
             </div>
             <div className="control">
               <label className="muted" style={{ fontSize: 12, marginRight: 6 }}>
-                Page size
+                {TEXT.accidents.filterPageSize}
               </label>
               <select value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
                 {[10, 20, 50, 100].map((n) => (
@@ -104,7 +105,7 @@ export default function AccidentsPage() {
               </select>
             </div>
             <div className="muted" style={{ fontSize: 12 }}>
-              {loading ? 'Loading…' : `${total} records`}
+              {loading ? TEXT.common.loading : TEXT.accidents.recordsFmt(total)}
             </div>
           </div>
           {err ? (
@@ -120,11 +121,11 @@ export default function AccidentsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 190 }}>Time</th>
-                <th style={{ width: 90 }}>Severity</th>
-                <th style={{ width: 120 }}>Type</th>
-                <th style={{ width: 90 }}>Confidence</th>
-                <th>Description</th>
+                <th style={{ width: 190 }}>{TEXT.accidents.thTime}</th>
+                <th style={{ width: 90 }}>{TEXT.accidents.thSeverity}</th>
+                <th style={{ width: 120 }}>{TEXT.accidents.thType}</th>
+                <th style={{ width: 90 }}>{TEXT.accidents.thConfidence}</th>
+                <th>{TEXT.accidents.thDescription}</th>
               </tr>
             </thead>
             <tbody>
@@ -148,7 +149,7 @@ export default function AccidentsPage() {
               {items.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={5} className="muted" style={{ padding: 14 }}>
-                    No records.
+                    {TEXT.accidents.empty}
                   </td>
                 </tr>
               ) : null}
@@ -159,18 +160,18 @@ export default function AccidentsPage() {
 
       <div className="controls" style={{ marginTop: 14, justifyContent: 'space-between' }}>
         <div className="muted" style={{ fontSize: 12 }}>
-          Page {page} / {totalPages}
+          {TEXT.accidents.pageFmt(page, totalPages)}
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1}>
-            Prev
+            {TEXT.accidents.prev}
           </button>
           <button
             className="btn"
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}
           >
-            Next
+            {TEXT.accidents.next}
           </button>
         </div>
       </div>

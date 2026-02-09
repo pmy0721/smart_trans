@@ -20,8 +20,8 @@ client = AsyncOpenAI(
     base_url=os.environ.get("SILICONFLOW_BASE_URL")
 )
 
-# MCP Server SSE 地址
-MCP_SSE_URL = "http://localhost:9009/sse"
+# MCP Server SSE 地址 (beeper)
+MCP_SSE_URL = os.getenv("SMART_TRANS_BEEP_MCP_URL", "http://localhost:9010/sse")
 
 
 async def beep_n(
@@ -42,15 +42,41 @@ async def beep_n(
     on_time_s = max(0.0, float(on_time))
     gap_s = max(0.0, float(gap))
 
+    def _check_ok(text: str, *, action: str) -> Exception | None:
+        t = (text or "").strip()
+        if not t:
+            # Some MCP servers may return empty text on success.
+            return None
+        # Success strings from beep_mcp_server.py
+        if "蜂鸣器已开启" in t or "蜂鸣器已关闭" in t:
+            return None
+        # Common error prefixes from beep_mcp_server.py
+        if t.startswith("配置错误") or t.startswith("华为云 API 错误") or t.startswith("错误"):
+            return RuntimeError(f"beep server error during {action}: {t}")
+        # Conservative: if it doesn't look like success, surface it.
+        return RuntimeError(f"unexpected beep server response during {action}: {t}")
+
+    err: Exception | None = None
     async with sse_client(url) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             try:
                 for i in range(count):
-                    await session.call_tool("set_beep", arguments={"state": "on"})
+                    r_on = await session.call_tool("set_beep", arguments={"state": "on"})
+                    on_text = getattr(r_on.content[0], "text", "") if r_on.content else ""
+                    err = _check_ok(on_text, action="set_beep:on")
+                    if err:
+                        break
+
                     if on_time_s:
                         await asyncio.sleep(on_time_s)
-                    await session.call_tool("set_beep", arguments={"state": "off"})
+
+                    r_off = await session.call_tool("set_beep", arguments={"state": "off"})
+                    off_text = getattr(r_off.content[0], "text", "") if r_off.content else ""
+                    err = _check_ok(off_text, action="set_beep:off")
+                    if err:
+                        break
+
                     if gap_s and i != count - 1:
                         await asyncio.sleep(gap_s)
             finally:
@@ -59,6 +85,11 @@ async def beep_n(
                     await session.call_tool("set_beep", arguments={"state": "off"})
                 except Exception:
                     pass
+
+    # NOTE: some MCP client context managers may swallow exceptions raised inside
+    # the session scope; raise after we exit the session to ensure callers see it.
+    if err:
+        raise err
 
 
 class AlarmAssistant:

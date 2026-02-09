@@ -1,9 +1,15 @@
+"""HuaweiCloud IoT beeper MCP Server (SSE).
+
+Exposes a single tool: `set_beep(state)`.
+
+This server is intentionally small and can be started standalone.
 """
-华为云 IoT 蜂鸣器控制 MCP Server
-提供控制 IoT 设备蜂鸣器的工具
-"""
-import os
+
+from __future__ import annotations
+
+import argparse
 import json
+import os
 
 from fastmcp import FastMCP
 
@@ -44,24 +50,18 @@ def _load_config() -> dict[str, str]:
     }
 
 
-def create_iotda_client() -> IoTDAClient:
+def create_iotda_client(cfg: dict[str, str]) -> IoTDAClient:
     """创建华为云 IoTDA 客户端"""
-    cfg = _load_config()
-    credentials = BasicCredentials(
-        cfg["ak"],
-        cfg["sk"],
-    ).with_derived_predicate(
+    credentials = BasicCredentials(cfg["ak"], cfg["sk"]).with_derived_predicate(
         DerivedCredentials.get_default_derived_predicate()
     )
-    
-    client = IoTDAClient.new_builder() \
-        .with_credentials(credentials) \
-        .with_region(coreRegion(
-            id=cfg["region_id"],
-            endpoint=cfg["endpoint"],
-        )) \
+
+    client = (
+        IoTDAClient.new_builder()
+        .with_credentials(credentials)
+        .with_region(coreRegion(id=cfg["region_id"], endpoint=cfg["endpoint"]))
         .build()
-    
+    )
     return client
 
 
@@ -100,7 +100,7 @@ def set_beep(state: str) -> str:
         beep_status = "ON" if is_on else "OFF"
         
         cfg = _load_config()
-        client = create_iotda_client()
+        client = create_iotda_client(cfg)
         
         # 构造命令请求
         request = CreateCommandRequest()
@@ -147,7 +147,7 @@ def get_device_status() -> str:
     """
     try:
         cfg = _load_config()
-        client = create_iotda_client()
+        client = create_iotda_client(cfg)
         
         from huaweicloudsdkiotda.v5.model.show_device_request import ShowDeviceRequest
         
@@ -161,6 +161,7 @@ def get_device_status() -> str:
         status = response_json.get("status", "未知")
         
         return f"设备名称: {device_name}, 状态: {'在线' if status == 'ONLINE' else '离线'}"
+        
     except RuntimeError as e:
         return f"配置错误: {str(e)}"
     except Exception as e:
@@ -169,6 +170,25 @@ def get_device_status() -> str:
 
 # 启动 MCP Server
 if __name__ == "__main__":
-    # 使用 SSE 模式，监听 9009 端口
-    print("Starting MCP Server on http://localhost:9009/sse", flush=True)
-    mcp.run(transport="sse", port=9009)
+    ap = argparse.ArgumentParser(description="HuaweiCloud IoT beeper MCP server (SSE).")
+    ap.add_argument(
+        "--host",
+        default=os.getenv("SMART_TRANS_BEEP_MCP_HOST", "0.0.0.0"),
+        help="Bind host/IP for SSE server (default: 0.0.0.0 or env SMART_TRANS_BEEP_MCP_HOST).",
+    )
+    ap.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("SMART_TRANS_BEEP_MCP_PORT", "9010")),
+        help="Bind port for SSE server (default: 9010 or env SMART_TRANS_BEEP_MCP_PORT).",
+    )
+    args = ap.parse_args()
+
+    host = str(args.host).strip() or "0.0.0.0"
+    port = int(args.port)
+    adv_host = host
+    if host == "0.0.0.0":
+        adv_host = os.getenv("SMART_TRANS_BEEP_MCP_ADVERTISE_HOST", host)
+
+    print(f"Starting Beep MCP Server on http://{adv_host}:{port}/sse (bind {host}:{port})", flush=True)
+    mcp.run(transport="sse", host=host, port=port)

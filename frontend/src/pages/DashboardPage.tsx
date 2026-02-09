@@ -1,8 +1,9 @@
 import ReactECharts from 'echarts-for-react'
 import { useEffect, useMemo, useState } from 'react'
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import AmapView from '../map/AmapView'
 import { getBySeverity, getByType, getGeoBuckets, getSummary, getTimeline } from '../api/client'
 import type { BucketCount, GeoBucket, SummaryStats, TimelinePoint } from '../api/types'
+import { TEXT } from '../ui/textZh'
 
 export default function DashboardPage() {
   const [summary, setSummary] = useState<SummaryStats | null>(null)
@@ -110,17 +111,15 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="pageTitle">Dashboard</h1>
+      <h1 className="pageTitle">{TEXT.dashboard.title}</h1>
       {err ? (
         <div className="card">
           <div className="cardInner">
-            <div style={{ fontWeight: 650, marginBottom: 6 }}>API error</div>
+            <div style={{ fontWeight: 650, marginBottom: 6 }}>{TEXT.dashboard.apiErrorTitle}</div>
             <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>
               {err}
             </div>
-            <div className="muted" style={{ marginTop: 8 }}>
-              Tip: start backend on port 8000.
-            </div>
+            <div className="muted" style={{ marginTop: 8 }}>{TEXT.dashboard.apiErrorTip}</div>
           </div>
         </div>
       ) : null}
@@ -131,9 +130,9 @@ export default function DashboardPage() {
             <div className="kpi">
               <div>
                 <div className="kpiValue">{summary ? summary.total : '—'}</div>
-                <div className="kpiLabel">Total records</div>
+                <div className="kpiLabel">{TEXT.dashboard.kpiTotal}</div>
               </div>
-              <div className="pill teal">Live</div>
+              <div className="pill teal">{TEXT.dashboard.pillLive}</div>
             </div>
           </div>
         </div>
@@ -142,9 +141,9 @@ export default function DashboardPage() {
             <div className="kpi">
               <div>
                 <div className="kpiValue">{summary ? summary.last_7d : '—'}</div>
-                <div className="kpiLabel">Last 7 days</div>
+                <div className="kpiLabel">{TEXT.dashboard.kpiLast7d}</div>
               </div>
-              <div className="pill">Rolling</div>
+              <div className="pill">{TEXT.dashboard.pillRolling}</div>
             </div>
           </div>
         </div>
@@ -153,7 +152,7 @@ export default function DashboardPage() {
             <div className="kpi">
               <div>
                 <div className="kpiValue">{summary ? summary.severe : '—'}</div>
-                <div className="kpiLabel">Severe</div>
+                <div className="kpiLabel">{TEXT.dashboard.kpiSevere}</div>
               </div>
               <div className="pill amber">
                 {summary ? `${Math.round(summary.severe_ratio * 100)}%` : '—'}
@@ -167,42 +166,29 @@ export default function DashboardPage() {
         <div className="card" style={{ gridColumn: 'span 12' }}>
           <div className="cardInner">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 650 }}>Accidents by region</div>
+              <div style={{ fontWeight: 650 }}>{TEXT.dashboard.regionTitle}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                {geo.length ? `${geoTotal} records / ${geo.length} buckets` : 'No location data'}
+                {geo.length ? TEXT.dashboard.regionMetaFmt(geoTotal, geo.length) : TEXT.dashboard.regionMetaNone}
               </div>
             </div>
             <div
               style={{
                 height: 340,
                 marginTop: 10,
-                borderRadius: 14,
-                overflow: 'hidden',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
               }}
             >
-              <MapContainer center={[35.8617, 104.1954]} zoom={4} scrollWheelZoom={false} style={{ height: '100%' }}>
-                <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                {geo.map((b) => (
-                  <CircleMarker
-                    key={`${b.lat},${b.lng}`}
-                    center={[b.lat, b.lng]}
-                    radius={radiusForCount(b.count)}
-                    pathOptions={{
-                      color: 'rgba(45, 212, 191, 0.9)',
-                      weight: 2,
-                      fillColor: 'rgba(45, 212, 191, 0.35)',
-                      fillOpacity: 1,
-                    }}
-                  >
-                    <Popup>
-                      Lat {b.lat.toFixed(2)}, Lng {b.lng.toFixed(2)}
-                      <br />
-                      Count: {b.count}
-                    </Popup>
-                  </CircleMarker>
-                ))}
-              </MapContainer>
+              <AmapView
+                height="100%"
+                center={{ lat: 35.8617, lng: 104.1954 }}
+                zoom={4}
+                scrollWheel={false}
+                circles={geo.map((b) => ({
+                  lat: b.lat,
+                  lng: b.lng,
+                  radius: radiusForCount(b.count),
+                  popup: TEXT.dashboard.mapPopupFmt(b.lat.toFixed(2), b.lng.toFixed(2), b.count),
+                }))}
+              />
             </div>
           </div>
         </div>
@@ -210,9 +196,9 @@ export default function DashboardPage() {
         <div className="card" style={{ gridColumn: 'span 7' }}>
           <div className="cardInner">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 650 }}>Accidents by type (Top 10)</div>
+              <div style={{ fontWeight: 650 }}>{TEXT.dashboard.byTypeTitle}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Counts
+                {TEXT.dashboard.byTypeMeta}
               </div>
             </div>
             <div style={{ height: 280, marginTop: 10 }}>
@@ -223,9 +209,9 @@ export default function DashboardPage() {
         <div className="card" style={{ gridColumn: 'span 5' }}>
           <div className="cardInner">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 650 }}>Severity split</div>
+              <div style={{ fontWeight: 650 }}>{TEXT.dashboard.severityTitle}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Proportion
+                {TEXT.dashboard.severityMeta}
               </div>
             </div>
             <div style={{ height: 280, marginTop: 10 }}>
@@ -236,9 +222,9 @@ export default function DashboardPage() {
         <div className="card" style={{ gridColumn: 'span 12' }}>
           <div className="cardInner">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontWeight: 650 }}>30-day timeline</div>
+              <div style={{ fontWeight: 650 }}>{TEXT.dashboard.timelineTitle}</div>
               <div className="muted" style={{ fontSize: 12 }}>
-                Records/day
+                {TEXT.dashboard.timelineMeta}
               </div>
             </div>
             <div style={{ height: 280, marginTop: 10 }}>

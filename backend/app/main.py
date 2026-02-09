@@ -11,6 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from app.db import engine, ensure_sqlite_schema
 from app.models import Base
 from app.routes.accidents import router as accidents_router
+from app.routes.ingest import router as ingest_router
+from app.routes.jobs import router as jobs_router
 from app.routes.stats import router as stats_router
 from app.routes.uploads import router as uploads_router
 from app.utils import uploads_dir
@@ -20,7 +22,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="smart_trans", version="0.1.0")
 
     origins = [
-        os.getenv("SMART_TRANS_CORS_ORIGIN", "http://localhost:5173"),
+        os.getenv("SMART_TRANS_CORS_ORIGIN", "http://localhost:25173"),
     ]
 
     app.add_middleware(
@@ -34,6 +36,8 @@ def create_app() -> FastAPI:
     app.include_router(uploads_router)
     app.include_router(accidents_router)
     app.include_router(stats_router)
+    app.include_router(ingest_router)
+    app.include_router(jobs_router)
 
     up = uploads_dir()
     app.mount("/uploads", StaticFiles(directory=str(up)), name="uploads")

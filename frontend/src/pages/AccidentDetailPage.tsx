@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { getAccident } from '../api/client'
 import type { AccidentRead } from '../api/types'
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet'
+import AmapView from '../map/AmapView'
+import { TEXT } from '../ui/textZh'
 
 function fmtDate(iso: string) {
   try {
@@ -19,6 +20,34 @@ function fmtDate(iso: string) {
     }).format(d)
   } catch {
     return iso
+  }
+}
+
+function fmtDateTimeLine(iso: string) {
+  try {
+    const d = new Date(iso)
+    const parts = new Intl.DateTimeFormat('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d)
+
+    const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value
+    const y = get('year')
+    const mo = get('month')
+    const da = get('day')
+    const h = get('hour')
+    const mi = get('minute')
+    const s = get('second')
+    if (y && mo && da && h && mi && s) return `${y}/${mo}/${da} ${h}:${mi}:${s}`
+    return fmtDate(iso)
+  } catch {
+    return fmtDate(iso)
   }
 }
 
@@ -50,19 +79,30 @@ export default function AccidentDetailPage() {
     }
   }, [id])
 
-  async function copyJson() {
+  async function copyInfo() {
     if (!item) return
-    await navigator.clipboard.writeText(JSON.stringify(item, null, 2))
+
+    const t0 = fmtDateTimeLine(item.created_at)
+    const t1 = (item.description || '').trim() || TEXT.common.none
+
+    let loc = TEXT.common.none
+    if (item.location_text && item.location_text.trim()) {
+      loc = item.location_text.replace(/\s+/g, ' ').trim()
+    } else if (item.lat != null && item.lng != null) {
+      loc = `Lat ${fmtCoord(item.lat)}, Lng ${fmtCoord(item.lng)}`
+    }
+
+    await navigator.clipboard.writeText([t0, t1, loc].join('\n'))
   }
 
   return (
     <div>
-      <h1 className="pageTitle">Accident Detail</h1>
+      <h1 className="pageTitle">{TEXT.detail.title}</h1>
 
       {err ? (
         <div className="card">
           <div className="cardInner">
-            <div style={{ fontWeight: 650, marginBottom: 6 }}>Error</div>
+            <div style={{ fontWeight: 650, marginBottom: 6 }}>{TEXT.detail.errorTitle}</div>
             <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>
               {err}
             </div>
@@ -74,11 +114,11 @@ export default function AccidentDetailPage() {
         <div className="twoCol">
           <div className="card">
             <div className="cardInner">
-              <div style={{ fontWeight: 650, marginBottom: 10 }}>Image</div>
+              <div style={{ fontWeight: 650, marginBottom: 10 }}>{TEXT.detail.imageTitle}</div>
               {item.image_url ? (
                 <img className="img" src={item.image_url} alt={`accident-${item.id}`} />
               ) : (
-                <div className="muted">No image attached.</div>
+                <div className="muted">{TEXT.detail.imageNone}</div>
               )}
             </div>
           </div>
@@ -86,29 +126,29 @@ export default function AccidentDetailPage() {
           <div className="card">
             <div className="cardInner">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ fontWeight: 650 }}>Record</div>
-                <button className="btn" onClick={copyJson}>
-                  Copy JSON
+                <div style={{ fontWeight: 650 }}>{TEXT.detail.recordTitle}</div>
+                <button className="btn" onClick={copyInfo}>
+                  {TEXT.detail.copyInfo}
                 </button>
               </div>
 
               <div style={{ marginTop: 12 }}>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  ID
+                  {TEXT.detail.id}
                 </div>
                 <div style={{ fontWeight: 650 }}>{item.id}</div>
               </div>
 
               <div style={{ marginTop: 10 }}>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Created at
+                  {TEXT.detail.createdAt}
                 </div>
                 <div>{fmtDate(item.created_at)}</div>
               </div>
 
               <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 <span className={item.has_accident ? 'pill amber' : 'pill teal'}>
-                  {item.has_accident ? 'Accident' : 'No accident'}
+                  {item.has_accident ? TEXT.detail.hasAccidentYes : TEXT.detail.hasAccidentNo}
                 </span>
                 <span className="pill">{item.accident_type}</span>
                 <span className="pill">{item.severity}</span>
@@ -117,17 +157,17 @@ export default function AccidentDetailPage() {
 
               <div style={{ marginTop: 12 }}>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Description
+                  {TEXT.detail.description}
                 </div>
                 <div className="muted" style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
-                  {item.description || '—'}
+                  {item.description || TEXT.common.none}
                 </div>
               </div>
 
               {item.hint ? (
                 <div style={{ marginTop: 12 }}>
                   <div className="muted" style={{ fontSize: 12 }}>
-                    Hint
+                    {TEXT.detail.hint}
                   </div>
                   <div className="muted" style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
                     {item.hint}
@@ -137,16 +177,14 @@ export default function AccidentDetailPage() {
 
               <div style={{ marginTop: 12 }}>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  Location
+                  {TEXT.detail.location}
                 </div>
                 {item.lat != null && item.lng != null ? (
                   <div className="muted" style={{ marginTop: 4 }}>
-                    Lat {fmtCoord(item.lat)}, Lng {fmtCoord(item.lng)}
+                    {`纬度 ${fmtCoord(item.lat)}，经度 ${fmtCoord(item.lng)}`}
                   </div>
                 ) : (
-                  <div className="muted" style={{ marginTop: 4 }}>
-                    No coordinates.
-                  </div>
+                  <div className="muted" style={{ marginTop: 4 }}>{TEXT.detail.noCoordinates}</div>
                 )}
                 {item.location_text ? (
                   <div className="muted" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>
@@ -159,30 +197,21 @@ export default function AccidentDetailPage() {
 
           <div className="card" style={{ gridColumn: '1 / -1' }}>
             <div className="cardInner">
-              <div style={{ fontWeight: 650, marginBottom: 10 }}>Map</div>
+              <div style={{ fontWeight: 650, marginBottom: 10 }}>{TEXT.detail.mapTitle}</div>
               {item.lat != null && item.lng != null ? (
-                <div style={{ height: 320, borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
-                  <MapContainer
-                    center={[item.lat, item.lng]}
-                    zoom={15}
-                    scrollWheelZoom={false}
-                    style={{ height: '100%', width: '100%' }}
-                  >
-                    <TileLayer
-                      attribution='&copy; OpenStreetMap contributors'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <Marker position={[item.lat, item.lng]}>
-                      <Popup>
-                        ID {item.id}
-                        <br />
-                        Lat {fmtCoord(item.lat)}, Lng {fmtCoord(item.lng)}
-                      </Popup>
-                    </Marker>
-                  </MapContainer>
-                </div>
+                <AmapView
+                  height={320}
+                  center={{ lat: item.lat, lng: item.lng }}
+                  zoom={15}
+                  scrollWheel={false}
+                  marker={{
+                    lat: item.lat,
+                    lng: item.lng,
+                    popup: TEXT.detail.mapPopupFmt(item.id, fmtCoord(item.lat), fmtCoord(item.lng)),
+                  }}
+                />
               ) : (
-                <div className="muted">No location data to display.</div>
+                <div className="muted">{TEXT.detail.mapNone}</div>
               )}
             </div>
           </div>

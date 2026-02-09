@@ -2,6 +2,7 @@ import { NavLink, Route, Routes } from 'react-router-dom'
 import AccidentDetailPage from './pages/AccidentDetailPage'
 import AccidentsPage from './pages/AccidentsPage'
 import DashboardPage from './pages/DashboardPage'
+import { TEXT } from './ui/textZh'
 
 function App() {
   return (
@@ -11,16 +12,16 @@ function App() {
         <div className="brand">
           <div className="brandMark" aria-hidden="true" />
           <div className="brandText">
-            <div className="brandTitle">Smart Trans</div>
-            <div className="brandSub">Accident Intelligence Console</div>
+            <div className="brandTitle">{TEXT.app.brandTitle}</div>
+            <div className="brandSub">{TEXT.app.brandSub}</div>
           </div>
         </div>
         <nav className="nav">
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'navItem active' : 'navItem')}>
-            Dashboard
+            {TEXT.app.navDashboard}
           </NavLink>
           <NavLink to="/accidents" className={({ isActive }) => (isActive ? 'navItem active' : 'navItem')}>
-            Accidents
+            {TEXT.app.navAccidents}
           </NavLink>
         </nav>
       </header>

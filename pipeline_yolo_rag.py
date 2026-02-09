@@ -232,6 +232,12 @@ def main(argv: list[str]) -> int:
     )
     ap.add_argument("--image", "-i", required=True, help="Input image path (jpg/png/webp...).")
 
+    ap.add_argument(
+        "--skip-yolo",
+        "--no-yolo",
+        action="store_true",
+        help="Skip YOLO annotation and analyze the original image directly.",
+    )
     ap.add_argument("--yolo-weights", default="yolov11/best.pt", help="YOLO weights path (default: yolov11/best.pt).")
     ap.add_argument("--yolo-conf", type=float, default=0.25, help="YOLO confidence threshold.")
     ap.add_argument("--yolo-iou", type=float, default=0.45, help="YOLO IoU threshold.")
@@ -247,12 +253,21 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--extract-runs", type=int, default=3, help="RAG mode only: number of fact-extraction runs (1-7).")
     ap.add_argument("--no-cache", action="store_true", help="RAG mode only: disable on-disk result cache.")
     ap.add_argument("--refresh-cache", action="store_true", help="RAG mode only: ignore cache and recompute.")
-    ap.add_argument("--upload", default=None, help="Upload URL (e.g. http://localhost:8000/api/uploads).")
-    ap.add_argument("--post", default=None, help="Post URL (e.g. http://localhost:8000/api/accidents).")
+    ap.add_argument("--upload", default=None, help="Upload URL (e.g. http://localhost:28000/api/uploads).")
+    ap.add_argument("--post", default=None, help="Post URL (e.g. http://localhost:28000/api/accidents).")
     ap.add_argument("--source", default="script+yolo", help="Source label when posting (default: script+yolo).")
 
     ap.add_argument("--beep", action="store_true", help="Beep based on severity (requires local MCP server).")
-    ap.add_argument("--beep-mcp-url", default="http://localhost:9009/sse", help="MCP SSE URL for beeper.")
+    ap.add_argument(
+        "--no-beep",
+        action="store_true",
+        help="Disable beep even if --beep is set (or if upstream passed it).",
+    )
+    ap.add_argument(
+        "--beep-mcp-url",
+        default=os.getenv("SMART_TRANS_BEEP_MCP_URL", "http://localhost:9010/sse"),
+        help="MCP SSE URL for beeper.",
+    )
     ap.add_argument("--beep-on-time", type=float, default=0.3, help="Single beep duration seconds.")
     ap.add_argument("--beep-gap", type=float, default=0.3, help="Gap between beeps seconds.")
     ap.add_argument(
@@ -270,28 +285,39 @@ def main(argv: list[str]) -> int:
         print(f"error: image not found: {image_path}", file=sys.stderr)
         return 2
 
-    weights = Path(args.yolo_weights)
-    if not weights.is_absolute():
-        weights = (root / weights).resolve()
-    if not weights.is_file():
-        print(f"error: yolo weights not found: {weights}", file=sys.stderr)
-        return 2
+    annotated_path: Path
+    yolo_meta: dict[str, Any]
+    if bool(args.skip_yolo):
+        annotated_path = image_path
+        yolo_meta = {
+            "skipped": True,
+            "reason": "--skip-yolo",
+            "image": str(image_path),
+            "annotated": str(image_path),
+        }
+    else:
+        weights = Path(args.yolo_weights)
+        if not weights.is_absolute():
+            weights = (root / weights).resolve()
+        if not weights.is_file():
+            print(f"error: yolo weights not found: {weights}", file=sys.stderr)
+            return 2
 
-    out_dir = Path(args.output_dir)
-    if not out_dir.is_absolute():
-        out_dir = (root / out_dir).resolve()
+        out_dir = Path(args.output_dir)
+        if not out_dir.is_absolute():
+            out_dir = (root / out_dir).resolve()
 
-    device = str(args.yolo_device or "").strip()
+        device = str(args.yolo_device or "").strip()
 
-    annotated_path, yolo_meta = _run_yolo_annotate(
-        image_path=image_path,
-        weights=weights,
-        out_dir=out_dir,
-        conf=float(args.yolo_conf),
-        iou=float(args.yolo_iou),
-        imgsz=int(args.yolo_imgsz),
-        device=device,
-    )
+        annotated_path, yolo_meta = _run_yolo_annotate(
+            image_path=image_path,
+            weights=weights,
+            out_dir=out_dir,
+            conf=float(args.yolo_conf),
+            iou=float(args.yolo_iou),
+            imgsz=int(args.yolo_imgsz),
+            device=device,
+        )
 
     if not args.api_key:
         print("error: missing SILICONFLOW_API_KEY (set it in .env or env var)", file=sys.stderr)
@@ -355,7 +381,15 @@ def main(argv: list[str]) -> int:
 
         # Optional: beep after successful store (only if has_accident=true).
         # We prefer backend-returned fields as the source of truth.
-        if bool(args.beep) and isinstance(post_resp, dict) and bool(post_resp.get("has_accident")):
+        disable_beep = bool(args.no_beep) or str(os.getenv("SMART_TRANS_DISABLE_BEEP", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "y",
+            "on",
+        }
+
+        if bool(args.beep) and not disable_beep and isinstance(post_resp, dict) and bool(post_resp.get("has_accident")):
             beeps = _severity_to_beeps(str(post_resp.get("severity") or ""))
             _try_beep(
                 beeps=beeps,

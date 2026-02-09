@@ -3,3 +3,4 @@
 
 huaweicloudsdkcore
 huaweicloudsdkiotda
+python-dotenv

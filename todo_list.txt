@@ -1,0 +1,37 @@
+## 5. 已知问题与改进方向
+
+### 5.1 依赖管理
+
+**问题：** `pipeline_yolo_rag.py` 依赖 `torch` / `opencv-python`，但未列入 `requirements.txt`。
+
+**建议：**
+
+- 拆分 `requirements-yolo.txt` 或使用 extras（uv/pip groups）
+- pipeline 在缺失依赖时自动 fallback 至无 YOLO 模式
+
+### 5.2 安全与资源控制
+
+**问题：** MCP receiver 接收 base64 并写盘、触发本地 subprocess，存在安全风险。
+
+**建议：**
+
+- 暴露至不可信网络时增加鉴权、签名、白名单机制
+- 增加文件大小限制、上传频率限制、磁盘配额与清理策略
+
+### 5.3 异步作业队列
+
+**问题：** 当前使用线程 + subprocess，扩展性有限。
+
+**建议：**
+
+- Job store 迁移至 SQLite/Redis
+- Worker 改为常驻队列模式（减少 Python 进程频繁拉起开销）
+
+### 5.4 位置数据质量
+
+**问题：** 位置信息是大屏体验的关键，当前支持 EXIF + watermark + model/hint。
+
+**建议：**
+
+- 增加坐标可信度评估与冲突合并策略
+- 引入地理编码/逆地理编码，将坐标映射至行政区以增强统计维度

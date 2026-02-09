@@ -105,7 +105,7 @@ async def main_async(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Send images to MCP receiver (SSE) and trigger pipeline.")
     ap.add_argument("images", nargs="*", help="Image paths.")
     ap.add_argument("--dir", default=None, help="Directory containing images.")
-    ap.add_argument("--server", default=os.getenv("SMART_TRANS_IMAGE_MCP_URL", "http://localhost:9010/sse"))
+    ap.add_argument("--server", default=os.getenv("SMART_TRANS_IMAGE_MCP_URL", "http://localhost:9011/sse"))
     ap.add_argument("--hint", default=None, help="Optional hint forwarded to pipeline (--hint).")
     ap.add_argument(
         "--pipeline-cli",

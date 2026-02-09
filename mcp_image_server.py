@@ -81,6 +81,47 @@ def _parse_default_pipeline_cli() -> list[str]:
     return raw.strip().split()
 
 
+def _env_flag(name: str) -> bool:
+    v = os.getenv(name, "").strip().lower()
+    return v in {"1", "true", "yes", "y", "on"}
+
+
+def _sanitize_pipeline_cli(cli: list[str]) -> list[str]:
+    """Optionally force/strip pipeline args for safety.
+
+    Controlled by env vars on the MCP receiver host:
+    - SMART_TRANS_PIPELINE_FORCE_SKIP_YOLO: if truthy, inject --skip-yolo
+    - SMART_TRANS_PIPELINE_DISABLE_BEEP: if truthy, remove beep-related args
+    """
+
+    out: list[str] = []
+    i = 0
+    while i < len(cli):
+        tok = str(cli[i])
+
+        # Strip beep flags (and their values) if disabled.
+        if _env_flag("SMART_TRANS_PIPELINE_DISABLE_BEEP"):
+            if tok in {"--beep", "--beep-start-server"}:
+                i += 1
+                continue
+            if tok in {"--beep-mcp-url", "--beep-on-time", "--beep-gap"}:
+                # drop flag and its value (best-effort)
+                i += 2
+                continue
+            if tok.startswith("--beep-mcp-url=") or tok.startswith("--beep-on-time=") or tok.startswith("--beep-gap="):
+                i += 1
+                continue
+
+        out.append(tok)
+        i += 1
+
+    if _env_flag("SMART_TRANS_PIPELINE_FORCE_SKIP_YOLO"):
+        if "--skip-yolo" not in out and "--no-yolo" not in out:
+            out.append("--skip-yolo")
+
+    return out
+
+
 @dataclass
 class Job:
     id: str
@@ -181,7 +222,7 @@ def _run_pipeline_for_job(job_id: str) -> None:
         if j2 is None:
             return
 
-        pipeline_cli = list(j2.pipeline_cli or [])
+        pipeline_cli = _sanitize_pipeline_cli(list(j2.pipeline_cli or []))
         cmd = [
             "python3",
             str((_repo_root() / "pipeline_yolo_rag.py").resolve()),
@@ -296,6 +337,8 @@ def upload_image(
     if pipeline_cli:
         cli += [str(x) for x in pipeline_cli if str(x).strip()]
 
+    cli = _sanitize_pipeline_cli(cli)
+
     j = Job(
         id=job_id,
         filename=safe,
@@ -344,7 +387,7 @@ def main(argv: list[str]) -> int:
         default=os.getenv("SMART_TRANS_IMAGE_MCP_HOST", "0.0.0.0"),
         help="Bind host/IP for SSE server (default: 0.0.0.0 or env SMART_TRANS_IMAGE_MCP_HOST).",
     )
-    ap.add_argument("--port", type=int, default=int(os.getenv("SMART_TRANS_IMAGE_MCP_PORT", "9010")))
+    ap.add_argument("--port", type=int, default=int(os.getenv("SMART_TRANS_IMAGE_MCP_PORT", "9011")))
     args = ap.parse_args(argv)
 
     host = str(args.host).strip() or "0.0.0.0"
