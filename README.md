@@ -117,15 +117,42 @@ python3 send_triplet_http.py \
   --wait
 ```
 
-## 5. 端到端处理流程
+## 5. 架构图（端到端）
 
 ```text
-triplet frames
-  -> /api/ingest_triplet
-  -> create async job (queued/running/done/failed)
-  -> per-frame analysis + triplet summary + law RAG
-  -> write accidents record (t0 as representative image)
-  -> frontend dashboard/list/detail
+                               +------------------------------+
+                               |  Offline KB Build            |
+                               |------------------------------|
+rag/trans_doc/*  ------------> | tools/build_law_kb.py        |
+                               |   -> rag/law_kb.jsonl        |
+                               | tools/build_law_vector_index |
+                               |   -> rag/law_kb.faiss        |
+                               |   -> rag/law_kb.meta.jsonl   |
+                               +---------------+--------------+
+                                               |
+                                               v
++-------------------+      +-------------------+-----------------------------+
+| Client / CLI      |      | FastAPI Backend (async job pipeline)            |
+|-------------------|      |-----------------------------------------------|
+| pipeline_rag.py   | ---> | POST /api/ingest_triplet                      |
+| send_triplet_http |      |   -> queued/running/done/failed               |
+| curl / frontend   |      |   -> per-frame analyzer (t-3s,t-1s,t0)        |
++-------------------+      |   -> triplet summary                           |
+                           |   -> law RAG retrieval                         |
+                           |      mode=vector/hybrid/keyword               |
+                           |      vector: FAISS + Embedding API             |
+                           |      fallback: keyword count                   |
+                           |   -> legal_qualitative + law_refs              |
+                           |   -> write SQLite accidents (t0 as main image) |
+                           +-------------------+-----------------------------+
+                                               |
+                                               v
+                           +-------------------+-----------------------------+
+                           | Data & Visualization                             |
+                           |--------------------------------------------------|
+                           | /api/accidents  /api/stats  /api/jobs          |
+                           | frontend dashboard / list / detail              |
+                           +--------------------------------------------------+
 ```
 
 ## 6. 前端说明
@@ -145,6 +172,20 @@ triplet frames
 ```bash
 python3 tools/build_law_kb.py --src rag/trans_doc --out rag/law_kb.jsonl
 ```
+
+- 构建向量索引（Embedding + FAISS）：
+
+```bash
+python3 tools/build_law_vector_index.py \
+  --kb rag/law_kb.jsonl \
+  --index rag/law_kb.faiss \
+  --meta rag/law_kb.meta.jsonl
+```
+
+- 检索模式（`.env`）：
+  - `SMART_TRANS_LAW_RETRIEVAL_MODE=vector`（默认）
+  - `SMART_TRANS_LAW_RETRIEVAL_MODE=hybrid`
+  - `SMART_TRANS_LAW_RETRIEVAL_MODE=keyword`
 
 ### 7.2 蜂鸣器 MCP
 
