@@ -121,7 +121,8 @@ def _build_observation_prompt(hint: str | None = None) -> str:
         "   - lane_blockage: 字符串（none/partial/full/unknown，是否占道：不占道/部分占道/完全堵塞/不确定）\n"
         "   - damage_level: 字符串（minor/moderate/severe/unknown，基于可见变形/碎片/受损程度；不确定 unknown）\n"
         "   - scene_context_confidence: 0 到 1 的数字（仅用于场景上下文判断，如逆行；不确定填 0）\n"
-        "   - description_facts: 字符串（1-3 句中文，只描述可见事实；不确定就说明不确定）\n"
+        "   - description_facts: 字符串（6-12 句中文，只描述可见事实；不确定就说明不确定；即使 collision_evidence=false 也必须完整描述道路/车道/标线/信号灯（如可见）与车辆相对位置/可能运动趋势。\n"
+        "     最后一行以‘关键词：’开头，列出 12-25 个短词/短语（客观可见、便于检索，用分号/顿号分隔；不确定用‘疑似/不确定’修饰）。\n"
         "   - location_text: 字符串或 null（地点/道路/地标的简短描述；无法判断就 null）\n"
         "   - lat: 数字或 null（纬度，-90 到 90；无法判断就 null）\n"
         "   - lng: 数字或 null（经度，-180 到 180；无法判断就 null）\n"
@@ -707,7 +708,7 @@ def analyze_accident_rag(
         resp = client.chat.completions.create(
             model=model,
             temperature=0,
-            max_tokens=512,
+            max_tokens=896,
             messages=[
                 {
                     "role": "user",
@@ -760,7 +761,14 @@ def analyze_accident_rag(
         severity = "轻微"
 
     confidence = _compute_confidence(obs, accident_type=accident_type, rules_conf=rules.get("confidence") or {})
-    description = _render_description(accident_type, severity, obs)
+    # Prefer factual description from extractor; it's richer for downstream summarization.
+    facts = obs.get("description_facts")
+    if isinstance(facts, str) and facts.strip():
+        description = facts.strip()
+    else:
+        description = _render_description(accident_type, severity, obs)
+    if len(description) > 5000:
+        description = description[:5000]
 
     query_terms = [
         accident_type,

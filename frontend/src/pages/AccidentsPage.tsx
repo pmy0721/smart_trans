@@ -40,24 +40,47 @@ export default function AccidentsPage() {
 
   useEffect(() => {
     let cancelled = false
-    setLoading(true)
-    setErr(null)
-    listAccidents({ page, page_size: pageSize, severity: severity || undefined, has_accident: hasAccident || undefined })
-      .then((r) => {
-        if (cancelled) return
-        setItems(r.items)
-        setTotal(r.total)
-      })
-      .catch((e) => {
-        if (cancelled) return
-        setErr(e instanceof Error ? e.message : String(e))
-      })
-      .finally(() => {
-        if (cancelled) return
-        setLoading(false)
-      })
+    let inFlight = false
+
+    const fetchList = () => {
+      if (cancelled) return
+      if (document.visibilityState !== 'visible') return
+      if (inFlight) return
+
+      inFlight = true
+      setLoading(true)
+      listAccidents({ page, page_size: pageSize, severity: severity || undefined, has_accident: hasAccident || undefined })
+        .then((r) => {
+          if (cancelled) return
+          setItems(r.items)
+          setTotal(r.total)
+          setErr(null)
+        })
+        .catch((e) => {
+          if (cancelled) return
+          setErr(e instanceof Error ? e.message : String(e))
+        })
+        .finally(() => {
+          inFlight = false
+          if (cancelled) return
+          setLoading(false)
+        })
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchList()
+      }
+    }
+
+    fetchList()
+    const timer = window.setInterval(fetchList, 5000)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [page, pageSize, severity, hasAccident])
 
@@ -143,7 +166,7 @@ export default function AccidentsPage() {
                   </td>
                   <td>{it.accident_type}</td>
                   <td className="muted">{Math.round(it.confidence * 100)}%</td>
-                  <td className="muted">{it.description || '—'}</td>
+                  <td className="muted">{(it.description || '—').slice(0, 120)}{it.description && it.description.length > 120 ? '…' : ''}</td>
                 </tr>
               ))}
               {items.length === 0 && !loading ? (

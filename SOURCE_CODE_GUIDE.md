@@ -8,7 +8,7 @@
 - [整体架构与数据流](#整体架构与数据流)
 - [目录结构与模块职责](#目录结构与模块职责)
 - [核心：traffic_issue_analyzer 分析器](#核心traffic_issue_analyzer-分析器)
-- [端到端：pipeline_yolo_rag 流水线](#端到端pipeline_yolo_rag-流水线)
+- [端到端：pipeline_rag 流水线](#端到端pipeline_rag-流水线)
 - [后端：FastAPI + SQLite](#后端fastapi--sqlite)
 - [前端：React + Vite](#前端react--vite)
 - [MCP：收图触发流水线 + 蜂鸣器](#mcp收图触发流水线--蜂鸣器)
@@ -22,13 +22,13 @@
 
 ## 项目概览
 
-`smart_trans` 是一个“交通事故智能台（console）”项目：从图片生成结构化事故记录，可选先跑 YOLO 标注，再用多模态 LLM 做事实抽取，随后用本地规则（可追溯）输出事故类型/严重程度/置信度/位置字段，并支持入库到 FastAPI + SQLite，最后由前端仪表盘可视化展示。
+`smart_trans` 是一个“交通事故智能台（console）”项目：从图片生成结构化事故记录，使用多模态 LLM 做事实抽取，随后用本地规则（可追溯）输出事故类型/严重程度/置信度/位置字段，并支持入库到 FastAPI + SQLite，最后由前端仪表盘可视化展示。
 
 核心目标：
 
 - **结构化输出**：输出严格 JSON（事故与位置字段统一约束）。
 - **确定性与可追溯**：RAG 模式下“最终分类”来自本地规则；模型主要负责“事实抽取”，同时把 trace 写入 `raw_model_output` 便于复盘。
-- **可扩展管线**：支持本地脚本分析、HTTP 收图异步分析入库、MCP 局域网收图触发流水线、以及 IoT 蜂鸣器报警。
+- **可扩展管线**：支持 HTTP 收图异步分析入库、轻量脚本上报、以及 IoT 蜂鸣器报警。
 
 ---
 
@@ -38,24 +38,18 @@
 
 ```
 image
-  ├─ (A) 本地脚本：traffic_issue_analyzer.py -> JSON
-  │       └─ 可选：upload(/api/uploads) + post(/api/accidents) -> SQLite
-  │
-  ├─ (B) 端到端：pipeline_yolo_rag.py
-  │       ├─ 可选：YOLO 标注输出 output/
-  │       ├─ analyzer 产 JSON（含 raw_model_output trace）
-  │       └─ 可选：upload + post 入库 -> 触发（可选）beep
-  │
-  ├─ (C) HTTP 异步入库：POST /api/ingest
-  │       ├─ 保存 uploads/
+  ├─ (A) HTTP 异步入库：POST /api/ingest_triplet
+  │       ├─ 保存 t-3s/t-1s/t0 到 uploads/
   │       ├─ 创建 job（落盘 incoming/jobs）
-  │       ├─ 后台线程调用 traffic_issue_analyzer.py
+  │       ├─ 后台并行调用 traffic_issue_analyzer.py
+  │       ├─ 事件级 summary + 法规检索
   │       └─ 入库 SQLite + 可选 beep
   │
-  └─ (D) MCP 收图触发：mcp_image_server.py (SSE)
-          ├─ 工具 upload_image 收图落盘 incoming/<batch>/
-          ├─ 子线程跑 pipeline_yolo_rag.py
-          └─ get_job/list_jobs 查询 job 状态
+  ├─ (B) 端到端：pipeline_rag.py
+  │       └─ triplet CLI（提交到 /api/ingest_triplet，并可等待 job）
+  │
+  └─ (C) 脚本上报：pipeline_rag.py / send_triplet_http.py
+          └─ 提交到 /api/ingest_triplet + 轮询 /api/jobs/{job_id}
 ```
 
 ---
@@ -64,8 +58,8 @@ image
 
 项目根目录（关键文件/目录）：
 
-- `traffic_issue_analyzer.py`：单图分析器；支持 `--task accident|rag|label`。
-- `pipeline_yolo_rag.py`：端到端流水线；可选 YOLO；可选入库与蜂鸣器。
+- `traffic_issue_analyzer.py`：帧级分析器（由 triplet 流程调用）。
+- `pipeline_rag.py`：triplet CLI 封装；提交三帧到 `/api/ingest_triplet`。
 - `rag/`
   - `rag/rules.json`：RAG 模式的本地规则（accident_type/severity/confidence 权重）。
   - `rag/knowledge.md`：RAG 检索的知识片段，用于 trace 解释（不决定最终分类）。
@@ -79,9 +73,8 @@ image
   - `frontend/src/api/*`：请求封装与类型
   - `frontend/src/map/*`：高德地图加载与渲染
   - `frontend/vite.config.ts`：dev 端口、代理、build 输出到后端 static
-- MCP 与蜂鸣器
-  - `mcp_image_server.py`：MCP SSE 图片接收服务，收图触发 pipeline。
-  - `send_images_mcp.py`：MCP 客户端，发送图片并可轮询 job。
+- 上报脚本与蜂鸣器
+  - `send_triplet_http.py`：HTTP 客户端脚本，提交三帧并可轮询 job。
   - `beep_mcp_server.py`：IoTDA 蜂鸣器 MCP server（工具 `set_beep`）。
   - `llm_mcp_client.py`：封装 `beep_n()`，以及一个“LLM 调工具”示例 demo。
 - 工具脚本
@@ -137,31 +130,15 @@ RAG 模式最终输出（示例字段）：
 
 ---
 
-## 端到端：pipeline_yolo_rag 流水线
+## 端到端：pipeline_rag 流水线
 
-文件：`pipeline_yolo_rag.py`
+文件：`pipeline_rag.py`
 
 ### 1) 管线步骤
 
-1. （可选）YOLO 标注：对输入图跑检测并绘制标注图到 `output/`
-2. analyzer 分析：调用 `traffic_issue_analyzer`（rag 或 accident）
-3. （可选）上传/入库：
-   - `--upload http://.../api/uploads` 上传标注图
-   - `--post http://.../api/accidents` 写事故记录
-4. （可选）蜂鸣器报警：
-   - 仅在 `--post` 成功且后端返回 `has_accident=true` 且 `--beep` 打开时触发
-   - beep 次数与严重程度对应：轻微=1，中等=2，严重=3
-
-### 2) YOLO 依赖点（重要）
-
-- 脚本默认期望存在 vendored 路径：`yolov11/ultralytics`
-- 并依赖 `opencv-python (cv2)`、`torch` 等
-- 若本地缺失 YOLO 目录或依赖，必须使用 `--skip-yolo` 直接分析原图
-
-### 3) trace 合并
-
-- 把 YOLO 元数据合并进 `raw_model_output`（JSON 串）
-- 超长时会截断 detections 等细节，避免超过后端 schema 限制
+1. 校验三帧参数：`--frame-t3/--frame-t1/--frame-t0`
+2. 提交 multipart 到 `POST /api/ingest_triplet`
+3. 可选 `--wait` 轮询 `/api/jobs/{job_id}` 到 `done/failed`
 
 ---
 
@@ -214,7 +191,7 @@ RAG 模式最终输出（示例字段）：
   - `GET /api/stats/timeline`：按日时间线
   - `GET /api/stats/geo`：lat/lng round 分桶
 - `backend/app/routes/ingest.py`
-  - `POST /api/ingest`：收图 -> 创建 job -> 后台运行 analyzer -> 入库 -> 可选 beep
+  - `POST /api/ingest_triplet`：收三帧 -> 创建 job -> 后台并行分析与事件汇总 -> 入库 -> 可选 beep
   - job 落盘：`incoming/jobs/<job_id>.json`；日志：`incoming/job_artifacts/<job_id>/analyzer.*.txt`
 - `backend/app/routes/jobs.py`
   - `GET /api/jobs` / `GET /api/jobs/{job_id}`：查询 ingest job 状态（含 result/error）
@@ -280,41 +257,23 @@ RAG 模式最终输出（示例字段）：
 
 ---
 
-## MCP：收图触发流水线 + 蜂鸣器
+## 上报与蜂鸣器
 
-### 1) MCP 图片接收（SSE）
+### 1) 三帧 HTTP 上报脚本
 
-文件：`mcp_image_server.py`
+文件：`send_triplet_http.py`
 
-- FastMCP Server，工具：
-  - `upload_image(filename, content_b64, hint, run_pipeline, pipeline_cli)`
-  - `get_job(job_id)`
-  - `list_jobs(limit)`
-- 产物：
-  - 图片：`incoming/<timestamp>/<file>`
-  - job：`incoming/jobs/<job_id>.json`
-  - pipeline 日志：`incoming/job_artifacts/<job_id>/pipeline.*.txt`
-- 参数治理（接收端可控）：
-  - `SMART_TRANS_PIPELINE_DEFAULT_CLI`：默认透传 pipeline 参数（JSON list 或空格分隔）
-  - `SMART_TRANS_PIPELINE_FORCE_SKIP_YOLO`：强制注入 `--skip-yolo`
-  - `SMART_TRANS_PIPELINE_DISABLE_BEEP`：剥离所有 beep 参数
+- 直接调用 `POST /api/ingest_triplet`（multipart）
+- 可选 `--wait` 轮询 `GET /api/jobs/{job_id}`
 
-### 2) MCP 图片发送客户端
-
-文件：`send_images_mcp.py`
-
-- 连接 `SMART_TRANS_IMAGE_MCP_URL`（默认 `http://localhost:9011/sse`）
-- 调用 `upload_image` 发送 base64 图片
-- `--wait` 轮询 `get_job` 直到 done/failed
-
-### 3) 蜂鸣器 MCP Server
+### 2) 蜂鸣器 MCP Server
 
 文件：`beep_mcp_server.py`
 
 - 工具：`set_beep(state)`，通过华为云 IoTDA 下发设备命令
 - Server：SSE（默认 `9010`），URL：`http://<host>:9010/sse`
 
-### 4) beep 调用封装
+### 3) beep 调用封装
 
 文件：`llm_mcp_client.py`
 
@@ -339,13 +298,10 @@ RAG 模式最终输出（示例字段）：
 - `SMART_TRANS_UPLOADS`：上传目录
 - `SMART_TRANS_CORS_ORIGIN`：允许跨域来源
 
-### 3) MCP 图片接收（可选）
+### 3) 作业队列（可选）
 
-- `SMART_TRANS_IMAGE_MCP_HOST` / `SMART_TRANS_IMAGE_MCP_PORT`
-- `SMART_TRANS_IMAGE_MCP_ADVERTISE_HOST`
 - `SMART_TRANS_INCOMING_DIR`
 - `SMART_TRANS_PIPELINE_MAX_CONCURRENCY`
-- `SMART_TRANS_PIPELINE_DEFAULT_CLI`
 
 ### 4) 蜂鸣器（可选）
 
@@ -371,7 +327,7 @@ RAG 模式最终输出（示例字段）：
 - `GET /api/accidents`：列表分页+筛选
 - `GET /api/accidents/{id}`：详情
 - `GET /api/stats/summary|by_type|by_severity|timeline|geo`：统计
-- `POST /api/ingest`：HTTP 收图异步分析入库（返回 `job_id`）
+- `POST /api/ingest_triplet`：HTTP 三帧异步分析入库（返回 `job_id`）
 - `GET /api/jobs`：job 列表
 - `GET /api/jobs/{job_id}`：job 状态（含 result/error）
 
@@ -382,7 +338,6 @@ RAG 模式最终输出（示例字段）：
 - DB：`backend/data/accidents.db`（默认）
 - 上传图片：`backend/uploads/`（默认）
 - 前端 build：`backend/static/`
-- pipeline 输出（标注图）：`output/`
 - MCP/ingest 任务目录：`incoming/`
   - `incoming/jobs/<job_id>.json`
   - `incoming/job_artifacts/<job_id>/pipeline.stdout.txt`
@@ -393,7 +348,6 @@ RAG 模式最终输出（示例字段）：
 
 ## 已知约束与风险点
 
-- YOLO 目录依赖：`pipeline_yolo_rag.py` 默认依赖 `yolov11/ultralytics`；若目录缺失或依赖（torch/cv2）未安装，必须 `--skip-yolo`。
 - 坐标体系：前端默认将后端坐标按 GPS 转 GCJ；若存储坐标为 GCJ，应设置 `VITE_AMAP_COORD_MODE=gcj` 避免二次偏移。
 - 密钥风险：`beep_mcp_server.py` 当前存在 AK/SK 默认值（高风险）；建议只从环境变量读取并移除默认硬编码。
 - trace 体积：`raw_model_output` 有长度限制（后端 schema `max_length=20000`），代码中做了截断策略，但需要关注扩展时体积膨胀。
@@ -402,21 +356,16 @@ RAG 模式最终输出（示例字段）：
 
 ## 建议的运行方式
 
-1) 仅输出分析 JSON（不入库）
-
-- 直接运行 `traffic_issue_analyzer.py`（推荐 `--task rag`）
-
-2) 入库 + 前端可视化
+1) 入库 + 前端可视化
 
 - 启动后端（28000）
 - 前端 dev（25173）或 `npm run build` 后由后端托管静态资源（单端口 28000）
 
-3) 局域网收图自动跑 pipeline
+2) 脚本化三帧上报
 
-- 启动 `mcp_image_server.py`（9011）
-- 发送端用 `send_images_mcp.py` 发送图片并可 `--wait` 轮询结果
+- 用 `pipeline_rag.py` 或 `send_triplet_http.py` 提交三帧并可 `--wait` 轮询结果
 
-4) 蜂鸣器报警
+3) 蜂鸣器报警
 
 - 启动 `beep_mcp_server.py`（9010）
-- pipeline 侧启用 `--beep`，且满足“成功入库 + has_accident=true”
+- triplet job 侧按后端配置触发蜂鸣器（满足“成功入库 + has_accident=true”）

@@ -52,6 +52,12 @@ def ensure_sqlite_schema(e: Engine) -> None:
         "location_confidence": "FLOAT",
         # Debugging / provenance
         "raw_model_output": "TEXT",
+
+        # Triplet pipeline outputs (stage 5)
+        "cause": "TEXT",
+        "legal_qualitative": "TEXT",
+        "law_refs_json": "TEXT",
+
     }
 
     con = sqlite3.connect(db_path)

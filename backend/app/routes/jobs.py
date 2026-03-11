@@ -13,7 +13,8 @@ def get_job(job_id: str) -> dict:
     j = store.get((job_id or "").strip())
     if j is None:
         return {"ok": False, "error": "job not found"}
-    return {"ok": True, "job": j.__dict__}
+    # Keep top-level status for backward-compat clients that poll obj.status.
+    return {"ok": True, "status": j.status, "job": j.__dict__}
 
 
 @router.get("/jobs")

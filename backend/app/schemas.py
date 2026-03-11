@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -23,6 +25,12 @@ class AccidentCreate(BaseModel):
     location_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
     raw_model_output: str | None = Field(default=None, max_length=20000)
+
+    # Optional: triplet pipeline outputs
+    cause: str | None = Field(default=None, max_length=5000)
+    legal_qualitative: str | None = Field(default=None, max_length=20000)
+    law_refs: list[dict[str, Any]] | None = None
+
 
 
 class AccidentRead(BaseModel):
@@ -47,6 +55,14 @@ class AccidentRead(BaseModel):
     location_confidence: float | None
 
     raw_model_output: str | None
+
+    cause: str | None = None
+    legal_qualitative: str | None = None
+    law_refs: list[dict[str, Any]] | None = None
+
+    # Optional triplet frames (t0/t-1s/t-3s) for UI display.
+    frames: list[dict[str, Any]] | None = None
+
 
 
 class AccidentListResponse(BaseModel):

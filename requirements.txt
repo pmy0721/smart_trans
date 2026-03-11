@@ -9,3 +9,5 @@ python-dotenv==1.2.1
 requests==2.32.3
 fastmcp==2.14.4
 mcp==1.26.0
+pypdf==6.0.0
+python-docx==1.2.0

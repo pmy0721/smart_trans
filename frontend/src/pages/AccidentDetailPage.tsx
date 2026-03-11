@@ -92,7 +92,12 @@ export default function AccidentDetailPage() {
       loc = `Lat ${fmtCoord(item.lat)}, Lng ${fmtCoord(item.lng)}`
     }
 
-    await navigator.clipboard.writeText([t0, t1, loc].join('\n'))
+    const cause = ((item as any).cause as string | undefined | null) || ''
+    const t2 = cause.trim() ? `原因：${cause.trim()}` : ''
+
+    const parts = [t0, t1, loc]
+    if (t2) parts.push(t2)
+    await navigator.clipboard.writeText(parts.join('\n'))
   }
 
   return (
@@ -115,11 +120,41 @@ export default function AccidentDetailPage() {
           <div className="card">
             <div className="cardInner">
               <div style={{ fontWeight: 650, marginBottom: 10 }}>{TEXT.detail.imageTitle}</div>
-              {item.image_url ? (
-                <img className="img" src={item.image_url} alt={`accident-${item.id}`} />
-              ) : (
-                <div className="muted">{TEXT.detail.imageNone}</div>
-              )}
+
+              {(() => {
+                const frames = ((item as any).frames as any[] | undefined | null) || []
+                const order: Record<string, number> = { t0: 0, 't-1s': 1, 't-3s': 2 }
+                const sorted = [...frames]
+                  .filter((f) => f && typeof f === 'object')
+                  .sort((a, b) => (order[String(a.key)] ?? 99) - (order[String(b.key)] ?? 99))
+
+                const label = (k: string) => (k === 't0' ? TEXT.detail.frameT0 : k === 't-1s' ? TEXT.detail.frameT1 : k === 't-3s' ? TEXT.detail.frameT3 : k)
+
+                if (sorted.length) {
+                  return (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {sorted.map((f, idx) => (
+                        <div key={`${f.key || 'frame'}-${idx}`}>
+                          <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>
+                            {label(String(f.key || ''))}
+                          </div>
+                          {f.image_url ? (
+                            <img className="img" src={String(f.image_url)} alt={`accident-${item.id}-${String(f.key || idx)}`} />
+                          ) : (
+                            <div className="muted">{TEXT.detail.imageNone}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                }
+
+                return item.image_url ? (
+                  <img className="img" src={item.image_url} alt={`accident-${item.id}`} />
+                ) : (
+                  <div className="muted">{TEXT.detail.imageNone}</div>
+                )
+              })()}
             </div>
           </div>
 
@@ -163,6 +198,47 @@ export default function AccidentDetailPage() {
                   {item.description || TEXT.common.none}
                 </div>
               </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {TEXT.detail.cause}
+                </div>
+                <div className="muted" style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
+                  {((item as any).cause as string | undefined | null) || TEXT.common.none}
+                </div>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <div className="muted" style={{ fontSize: 12 }}>
+                  {TEXT.detail.legalQualitative}
+                </div>
+                <div className="muted" style={{ whiteSpace: 'pre-wrap', marginTop: 4 }}>
+                  {((item as any).legal_qualitative as string | undefined | null) || TEXT.common.none}
+                </div>
+              </div>
+
+              {Array.isArray((item as any).law_refs) && (item as any).law_refs.length ? (
+                <div style={{ marginTop: 12 }}>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {TEXT.detail.lawRefs}
+                  </div>
+                  <div style={{ marginTop: 6, display: 'grid', gap: 8 }}>
+                    {((item as any).law_refs as any[]).slice(0, 6).map((r, idx) => (
+                      <div key={idx} className="card" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                        <div className="cardInner" style={{ padding: 10 }}>
+                          <div style={{ fontWeight: 650, marginBottom: 6, fontSize: 12 }}>
+                            {`${r?.source || ''}${r?.title ? `｜${r.title}` : ''}`}
+                          </div>
+                          <div className="muted" style={{ whiteSpace: 'pre-wrap' }}>{r?.quote || TEXT.common.none}</div>
+                          {r?.relevance ? (
+                            <div className="muted" style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{r.relevance}</div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
 
               {item.hint ? (
                 <div style={{ marginTop: 12 }}>

@@ -35,3 +35,8 @@ class Accident(Base):
     location_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     raw_model_output: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Triplet pipeline outputs (stored from /api/ingest_triplet)
+    cause: Mapped[str | None] = mapped_column(Text, nullable=True)
+    legal_qualitative: Mapped[str | None] = mapped_column(Text, nullable=True)
+    law_refs_json: Mapped[str | None] = mapped_column(Text, nullable=True)

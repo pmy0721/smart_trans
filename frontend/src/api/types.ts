@@ -16,6 +16,26 @@ export type AccidentRead = {
   location_source: string | null
   location_confidence: number | null
   raw_model_output: string | null
+
+  cause?: string | null
+  legal_qualitative?: string | null
+  law_refs?:
+    | Array<{
+        snippet_id?: string | null
+        source: string
+        title: string
+        quote: string
+        relevance: string
+      }>
+    | null
+
+  frames?:
+    | Array<{
+        key: string
+        image_path?: string | null
+        image_url: string | null
+      }>
+    | null
 }
 
 export type AccidentListResponse = {

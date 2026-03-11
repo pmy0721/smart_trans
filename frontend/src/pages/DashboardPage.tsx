@@ -15,21 +15,47 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let cancelled = false
-    Promise.all([getSummary(), getByType(), getBySeverity(), getTimeline(30), getGeoBuckets({ precision: 2, limit: 300 })])
-      .then(([s, t, sev, tl, g]) => {
-        if (cancelled) return
-        setSummary(s)
-        setByType(t)
-        setBySeverity(sev)
-        setTimeline(tl)
-        setGeo(g)
-      })
-      .catch((e) => {
-        if (cancelled) return
-        setErr(e instanceof Error ? e.message : String(e))
-      })
+    let inFlight = false
+
+    const fetchAll = () => {
+      if (cancelled) return
+      if (document.visibilityState !== 'visible') return
+      if (inFlight) return
+
+      inFlight = true
+      Promise.all([getSummary(), getByType(), getBySeverity(), getTimeline(30), getGeoBuckets({ precision: 2, limit: 300 })])
+        .then(([s, t, sev, tl, g]) => {
+          if (cancelled) return
+          setSummary(s)
+          setByType(t)
+          setBySeverity(sev)
+          setTimeline(tl)
+          setGeo(g)
+          setErr(null)
+        })
+        .catch((e) => {
+          if (cancelled) return
+          setErr(e instanceof Error ? e.message : String(e))
+        })
+        .finally(() => {
+          inFlight = false
+        })
+    }
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchAll()
+      }
+    }
+
+    fetchAll()
+    const timer = window.setInterval(fetchAll, 10000)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
     return () => {
       cancelled = true
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [])
 

@@ -8,8 +8,8 @@ export default defineConfig({
     port: 25173,
     strictPort: true,
     proxy: {
-      '/api': 'http://43.138.60.74:28000',
-      '/uploads': 'http://43.138.60.74:28000',
+      '/api': 'http://127.0.0.1:28000',
+      '/uploads': 'http://127.0.0.1:28000',
     },
   },
   build: {

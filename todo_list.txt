@@ -2,12 +2,12 @@
 
 ### 5.1 依赖管理
 
-**问题：** `pipeline_yolo_rag.py` 依赖 `torch` / `opencv-python`，但未列入 `requirements.txt`。
+**问题：** 分析链路依赖与可选能力（如蜂鸣器）目前共用主 requirements，部署裁剪空间有限。
 
 **建议：**
 
-- 拆分 `requirements-yolo.txt` 或使用 extras（uv/pip groups）
-- pipeline 在缺失依赖时自动 fallback 至无 YOLO 模式
+- 拆分可选依赖分组（如 beep 扩展）或使用 extras（uv/pip groups）
+- 在 CI 中增加最小依赖安装矩阵，尽早发现缺失依赖
 
 ### 5.2 安全与资源控制
 
